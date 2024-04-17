@@ -51,6 +51,7 @@ int main()
 
 	std::string line;
 	std::vector<std::string> lines;
+	lines.reserve(200000);
 	std::list<unsigned long long> indices;
 	unsigned long long lineCount = 0ULL;
 
@@ -102,7 +103,7 @@ int main()
 		if (progressRatio - lastProgressRatio > 10)
 		{
 			lastProgressRatio = progressRatio;
-			std::cout << progressRatio << '%' <<std::endl;
+			std::cout << "==";
 		}
 	}
 
