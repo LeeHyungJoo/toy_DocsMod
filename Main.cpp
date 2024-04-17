@@ -9,7 +9,6 @@
 int main() 
 {
 	auto lastTime = std::chrono::steady_clock::now();
-	unsigned long long spendTime = 0ULL;
 
 	std::cout << "파일명 입력하세요. \n:";
 
@@ -65,9 +64,9 @@ int main()
 		lines.push_back(line);
 		lineCount++;
 	}
-	spendTime = lastTime.time_since_epoch().count() - std::chrono::steady_clock::now().time_since_epoch().count();
+
+	std::cout << "파일 로드를 완료하였습니다. " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - lastTime).count() << "ms" << std::endl;
 	lastTime = std::chrono::steady_clock::now();
-	std::cout << "파일 로드를 완료하였습니다. " << spendTime << std::endl;
 
 	unsigned long long progressCount = 0ULL;
 	unsigned long long wholeProgressCount = indices.size();
@@ -109,9 +108,8 @@ int main()
 
 	std::cout << progressRatio << '%' << std::endl;
 
-	spendTime = lastTime.time_since_epoch().count() - std::chrono::steady_clock::now().time_since_epoch().count();
+	std::cout << "변환을 마쳤습니다. " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - lastTime).count()  << "ms" << std::endl;
 	lastTime = std::chrono::steady_clock::now();
-	std::cout << "변환을 마쳤습니다. " << spendTime <<std::endl;
 
 	std::cout << "출력 파일을 생성하고 있습니다.\n";
 	outputFile.seekp(0);
