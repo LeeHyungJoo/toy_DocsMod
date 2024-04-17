@@ -3,75 +3,116 @@
 #include <regex>
 #include <string>
 #include <vector>
+#include <list>
+#include <chrono>
 
 int main() 
 {
-	std::fstream file("20240414_ACTIVE.log", std::ios::in);
-	std::fstream output("20240414_ACTIVE_output.log",std::ios::out | std::ios::app);
+	std::cout << "파일명 입력하세요. \n:";
 
-	if (!file.is_open()) 
+	std::string inputFileName;
+	std::cin >> inputFileName;
+
+	std::fstream inputFile(inputFileName, std::ios::in);
+
+	if (!inputFile.is_open()) 
 	{
+		std::cout << "해당 파일을 열 수 없습니다.\n";
 		return 1;
 	}
 
-	std::string line;
-	std::vector<std::string> lines;
+	std::string outputFileName;
+	auto extensionItr = std::find(inputFileName.begin(), inputFileName.end(), '.');
+	outputFileName.append(inputFileName.begin(), extensionItr);
+	outputFileName.append("_output");
+	outputFileName.append(extensionItr, inputFileName.end());
 
-	while (std::getline(file, line)) 
+	std::fstream outputFile(outputFileName, std::ios::out | std::ios::app);
+	if (!outputFile.is_open())
 	{
-		lines.push_back(line);
+		std::cout << "출력 파일을 생성하는데 실패했습니다.\n";
+		return 1;
 	}
 
-	for (size_t i = 0; i < lines.size(); ++i) 
+
+	std::regex linePattern(R"(RUN\s+Handler\s+PICK_03_AA_R_PICKUP\s+END\s+PICK_03_AA_R_PICKUP_END)");
+	std::vector<std::regex> linePatterns{
+		std::regex(R"(RUN\s+EVENT\s+AUTO\s+SET\s+PICK_03_AA_R_PICKUP_CHECK)"),
+		std::regex(R"(RUN\s+EVENT\s+AUTO\s+SET\s+PICK_03_AA_R_PICKUP_MOVE)"),
+		std::regex(R"(RUN\s+EVENT\s+AUTO\s+SET\s+PICK_03_AA_R_PICKUP_SEARCH)"),
+		std::regex(R"(RUN\s+Handler\s+PICK_03_AA_R_PICKUP\s+START\s+PICK_03_AA_R_PICKUP_START)"),
+
+	};
+
+	std::regex replacePattern(R"(Pcb\sWork\sL\s(\d+))");
+	std::string replaceStr("Pcb Work L ");
+
+	std::string line;
+	std::vector<std::string> lines;
+	std::list<unsigned long long> indices;
+	unsigned long long lineCount = 0ULL;
+
+
+	std::cout << "파일을 로드 중 입니다. \n";
+	while (std::getline(inputFile, line)) 
 	{
-		std::string& currentLine = lines[i];
-		int lineNumber = static_cast<int>(i) + 1; // 현재 줄 번호
+		if (std::regex_search(line, linePattern))
+			indices.push_back(lineCount);
 
-		std::regex linePattern(R"(RUN\s+Handler\s+PICK_03_AA_R_PICKUP\s+END\s+PICK_03_AA_R_PICKUP_END)");
-		std::vector<std::regex> linePatterns{
-			std::regex(R"(RUN\s+EVENT\s+AUTO\s+SET\s+PICK_03_AA_R_PICKUP_CHECK)"),
-			std::regex(R"(RUN\s+EVENT\s+AUTO\s+SET\s+PICK_03_AA_R_PICKUP_MOVE)"),
-			std::regex(R"(RUN\s+EVENT\s+AUTO\s+SET\s+PICK_03_AA_R_PICKUP_SEARCH)"),
-			std::regex(R"(RUN\s+Handler\s+PICK_03_AA_R_PICKUP\s+START\s+PICK_03_AA_R_PICKUP_START)"),
+		lines.push_back(line);
+		lineCount++;
+	}
+	
+	unsigned long long progressCount = 0ULL;
+	unsigned long long wholeProgressCount = indices.size();
+	unsigned long long lastProgressRatio = 0ULL;
+	unsigned long long progressRatio = 0ULL;
 
-		};
+	std::cout << "변환 시작합니다.\n";
+	for (auto index : indices)
+	{
+		std::string& currentLine = lines[index];
+		int lineNumber = static_cast<int>(index) + 1;
 
-		std::regex numberPattern(R"(Pcb\sWork\sL\s(\d+))");
-		if (std::regex_search(currentLine, linePattern)) 
+		std::smatch match;
+		if (!std::regex_search(currentLine, match, replacePattern))
+			continue;
+
+		progressCount++;
+		int num = std::stoi(match[1]);
+
+		for (int j = 4; j > 0; --j)
 		{
-			std::smatch match;
-			std::regex pattern("Pcb Work L (\\d+)");
-			if (!std::regex_search(currentLine, match, pattern))
-				continue;
-
-			int num = std::stoi(match[1]);
-
-			for (int j = 4; j > 0; --j) 
+			int targetLineNumber = lineNumber - j;
+			if (targetLineNumber >= 1)
 			{
-				int targetLineNumber = lineNumber - j;
-				if (targetLineNumber >= 1)
-				{
-					if (!std::regex_search(lines[targetLineNumber - 1], linePatterns[j - 1]))
-					{
-						continue;
-					}
+				if (!std::regex_search(lines[targetLineNumber - 1], linePatterns[j - 1]))
+					continue;
 
-					std::string replaced_line = std::regex_replace(lines[targetLineNumber - 1], numberPattern, "Pcb Work L " + std::to_string(num));
-
-					lines[targetLineNumber - 1] = replaced_line;
-				}
+				lines[targetLineNumber - 1] = std::regex_replace(lines[targetLineNumber - 1], replacePattern, replaceStr.append(std::to_string(num)));
 			}
+		}
+
+		progressRatio = static_cast<unsigned long long>(((double)progressCount / wholeProgressCount) * 100);
+		if (progressRatio - lastProgressRatio > 10)
+		{
+			lastProgressRatio = progressRatio;
+			std::cout << progressRatio << '%' <<std::endl;
 		}
 	}
 
-	output.seekp(0);
+	std::cout << progressRatio << '%' << std::endl;
+	std::cout << "변환을 마쳤습니다.\n";
+
+	std::cout << "출력 파일을 생성하고 있습니다.\n";
+	outputFile.seekp(0);
 	for (const auto& line : lines) 
-	{
-		output << line << '\n';
-	}
+		outputFile << line << '\n';
 
-	file.close();
-	output.close();
+	inputFile.close();
+	outputFile.close();
 
+	std::cout << "모든 작업을 마쳤습니다.\n";
+	system("pause");
 	return 0;
 }
